@@ -1,1 +1,53 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Ocean Waste Collector</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"/></head><body><canvas id="gameCanvas"></canvas><div class="floating-ui"><div class="title-block"><p class="eyebrow">Ocean Waste Collector</p><h1>Clean the Ocean Floor</h1></div><div class="hud"><p>Round: <span id="round">1</span></p><p>Collected: <span id="score">0</span></p><p>Waste remaining: <span id="trashLeft">0</span></p><p id="message">Click start to begin.</p></div><button id="startButton">Start / Restart</button></div><div class="hint">Hold Arrow Keys / W A S D to move · Release to idle · Edges stop you</div><div id="infoOverlay" class="info-overlay hidden"><div class="info-card"><p class="info-kicker">Ocean Waste Note</p><h2 id="infoTitle">Round Complete</h2><p id="infoBody"></p><p id="infoSmall" class="info-small"></p><button id="continueButton">Continue</button></div></div><script src="game.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ocean Waste Collector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <aside class="floating-ui" aria-label="Game controls">
+    <div class="title-block">
+      <p class="eyebrow">Ocean Waste Collector</p>
+      <h1>Clean the Ocean Floor</h1>
+    </div>
+    <p id="message" class="status-text">Click begin to start.</p>
+    <button id="startButton">Begin / Restart</button>
+  </aside>
+
+  <section class="floating-hud" aria-label="Game status">
+    <div class="hud-item">
+      <span>Round</span>
+      <strong id="round">1</strong>
+    </div>
+    <div class="hud-item">
+      <span>Waste remaining</span>
+      <strong id="trashLeft">0</strong>
+    </div>
+    <div class="hud-item">
+      <span>Collected</span>
+      <strong id="score">0</strong>
+    </div>
+  </section>
+
+  <div class="hint">Hold Arrow Keys / W A S D to move · Release to idle · Edges stop you</div>
+
+  <div id="infoOverlay" class="info-overlay hidden">
+    <section class="info-card" aria-live="polite">
+      <p class="info-kicker">Ocean Waste Note</p>
+      <h2 id="infoTitle">Round Complete</h2>
+      <p id="infoBody"></p>
+      <p id="infoSmall" class="info-small"></p>
+      <button id="continueButton">Continue</button>
+    </section>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
