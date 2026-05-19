@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ocean Trash Snake — Info Rounds</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div class="floating-ui">
+    <p class="eyebrow">Ocean Trash Snake</p>
+    <h1>海洋垃圾清理蛇</h1>
+    <div class="hud">
+      <p>Round: <span id="round">1</span></p>
+      <p>Collected: <span id="score">0</span></p>
+      <p>Trash left: <span id="trashLeft">0</span></p>
+      <p id="message">Click start to clean the ocean floor.</p>
+    </div>
+    <button id="startButton">Start / Restart</button>
+  </div>
+
+  <div class="hint">Hold Arrow Keys / W A S D to move｜Release to idle and blink｜Walls stop you</div>
+
+  <div id="infoOverlay" class="info-overlay hidden">
+    <div class="info-card">
+      <p class="info-kicker">Ocean Waste Note</p>
+      <h2 id="infoTitle">Round Complete</h2>
+      <p id="infoBody"></p>
+      <p id="infoSmall" class="info-small"></p>
+      <button id="continueButton">Continue to next round</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,420 @@
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const scoreEl = document.getElementById("score");
+const trashLeftEl = document.getElementById("trashLeft");
+const roundEl = document.getElementById("round");
+const messageEl = document.getElementById("message");
+const startButton = document.getElementById("startButton");
+const infoOverlay = document.getElementById("infoOverlay");
+const infoTitle = document.getElementById("infoTitle");
+const infoBody = document.getElementById("infoBody");
+const infoSmall = document.getElementById("infoSmall");
+const continueButton = document.getElementById("continueButton");
+
+const headSize = 88;
+const bodySize = 78;
+const moveSpeed = 185;
+const bodySpacing = 58;
+const baseTrashCount = 18;
+const trashIncreasePerRound = 4;
+const smallTrashSize = 54;
+const largeTrashSize = 96;
+
+const trashSources = [
+  "assets/bottle.png",
+  "assets/plastic_bag.png",
+  "assets/straw.png",
+  "assets/can.png",
+  "assets/cup.png",
+  "assets/fishing_net.png"
+];
+
+const oceanFacts = [
+  {
+    title: "Plastic does not really disappear.",
+    body: "Many plastic items break into smaller and smaller pieces called microplastics. These fragments can move through water, sand, and food chains, making them much harder to remove than a whole bottle or bag.",
+    small: "Design idea: the snake grows because every collected object leaves a trace behind."
+  },
+  {
+    title: "Most ocean waste starts on land.",
+    body: "Trash does not have to be thrown directly into the sea to reach it. Wind, rain, rivers, drainage systems, and poorly managed waste can carry everyday packaging from cities to the ocean.",
+    small: "Design idea: the ocean is connected to ordinary daily life, not only beaches and vacations."
+  },
+  {
+    title: "Ghost gear keeps catching life.",
+    body: "Abandoned fishing nets, lines, and traps are often called ghost gear. They can continue drifting and entangling marine animals long after people stop using them.",
+    small: "Design idea: large trash can represent objects that are harder to remove."
+  },
+  {
+    title: "Clean-up helps, but prevention matters more.",
+    body: "Collecting waste is important, but reducing single-use items, reusing materials, and improving waste systems can prevent trash from reaching water in the first place.",
+    small: "Design idea: finishing one round is not the end — the next round reminds us the problem keeps returning."
+  },
+  {
+    title: "Small objects still matter.",
+    body: "Bottle caps, wrappers, straws, and fragments may look minor, but they can be mistaken for food or become part of microplastic pollution.",
+    small: "Design idea: the small trash pieces are easy to miss, but they still count."
+  }
+];
+
+const trashImages = [];
+let loadedImages = 0;
+let gameWidth = 0;
+let gameHeight = 0;
+let snake = [];
+let pathPoints = [];
+let direction = { x: 0, y: 0 };
+let pressedKeys = new Set();
+let trashItems = [];
+let score = 0;
+let round = 1;
+let gameStarted = false;
+let cleanupComplete = false;
+let showingInfo = false;
+let animationTime = 0;
+let lastFrameTime = 0;
+let animationFrameId = null;
+
+trashSources.forEach((src) => {
+  const img = new Image();
+  img.src = src;
+  img.onload = () => {
+    loadedImages++;
+    if (loadedImages === trashSources.length && !animationFrameId) {
+      lastFrameTime = performance.now();
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+  };
+  trashImages.push(img);
+});
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(window.innerWidth * dpr);
+  canvas.height = Math.floor(window.innerHeight * dpr);
+  canvas.style.width = `${window.innerWidth}px`;
+  canvas.style.height = `${window.innerHeight}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  gameWidth = window.innerWidth;
+  gameHeight = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function startFreshGame() {
+  round = 1;
+  startRound();
+}
+
+function startRound() {
+  const startX = gameWidth / 2;
+  const startY = gameHeight / 2;
+  snake = [{ x: startX, y: startY, img: null }];
+  pathPoints = [{ x: startX, y: startY }];
+  direction = { x: 0, y: 0 };
+  pressedKeys.clear();
+  score = 0;
+  cleanupComplete = false;
+  showingInfo = false;
+  gameStarted = true;
+  infoOverlay.classList.add("hidden");
+  scoreEl.textContent = score;
+  roundEl.textContent = round;
+  messageEl.textContent = "Hold a direction key to start cleaning.";
+  createTrashField();
+  lastFrameTime = performance.now();
+}
+
+function getTrashCountForRound() {
+  return baseTrashCount + (round - 1) * trashIncreasePerRound;
+}
+function getRandomTrashImage() {
+  return trashImages[Math.floor(Math.random() * trashImages.length)];
+}
+function createTrashField() {
+  trashItems = [];
+  for (let i = 0; i < getTrashCountForRound(); i++) placeOneTrash();
+  updateTrashLeft();
+}
+function placeOneTrash() {
+  for (let tries = 0; tries < 600; tries++) {
+    const isLarge = Math.random() < 0.38;
+    const size = isLarge ? largeTrashSize : smallTrashSize;
+    const margin = size / 2 + 12;
+    const item = {
+      x: margin + Math.random() * Math.max(1, gameWidth - margin * 2),
+      y: margin + Math.random() * Math.max(1, gameHeight - margin * 2),
+      size,
+      isLarge,
+      img: getRandomTrashImage(),
+      rotation: Math.random() * Math.PI * 2,
+      bobOffset: Math.random() * Math.PI * 2
+    };
+    if (item.x < 430 && item.y < 250) continue;
+    if (snake.length && Math.hypot(item.x - snake[0].x, item.y - snake[0].y) < 160) continue;
+    const overlaps = trashItems.some((t) => Math.hypot(t.x - item.x, t.y - item.y) < (t.size + item.size) / 2 + 20);
+    if (!overlaps) {
+      trashItems.push(item);
+      return;
+    }
+  }
+}
+function updateTrashLeft() {
+  trashLeftEl.textContent = trashItems.length;
+}
+
+function gameLoop(now) {
+  const dt = Math.min((now - lastFrameTime) / 1000, 0.04);
+  lastFrameTime = now;
+  if (gameStarted && !cleanupComplete && !showingInfo) update(dt);
+  draw();
+  if (!gameStarted) drawIdleScreenText();
+  animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+function update(dt) {
+  updateDirectionFromKeys();
+  const isMoving = direction.x !== 0 || direction.y !== 0;
+  if (isMoving) {
+    const head = snake[0];
+    let nextX = head.x + direction.x * moveSpeed * dt;
+    let nextY = head.y + direction.y * moveSpeed * dt;
+    const radius = headSize / 2;
+    let hitWall = false;
+    if (nextX < radius) { nextX = radius; hitWall = true; }
+    else if (nextX > gameWidth - radius) { nextX = gameWidth - radius; hitWall = true; }
+    if (nextY < radius) { nextY = radius; hitWall = true; }
+    else if (nextY > gameHeight - radius) { nextY = gameHeight - radius; hitWall = true; }
+    head.x = nextX;
+    head.y = nextY;
+    if (hitWall) {
+      direction = { x: 0, y: 0 };
+      pressedKeys.clear();
+      messageEl.textContent = "You reached the edge. Choose another direction.";
+    }
+    recordPathPoint(head.x, head.y);
+  }
+  updateBodyPositions();
+  checkTrashCollection();
+  if (trashItems.length === 0 && !cleanupComplete) {
+    cleanupComplete = true;
+    messageEl.textContent = "Round complete. Read the ocean waste note.";
+    showOceanInfoScreen();
+  }
+}
+
+function showOceanInfoScreen() {
+  showingInfo = true;
+  pressedKeys.clear();
+  direction = { x: 0, y: 0 };
+  const fact = oceanFacts[(round - 1) % oceanFacts.length];
+  infoTitle.textContent = fact.title;
+  infoBody.textContent = fact.body;
+  infoSmall.textContent = fact.small;
+  continueButton.textContent = `Continue to round ${round + 1}`;
+  infoOverlay.classList.remove("hidden");
+}
+function continueToNextRound() {
+  round++;
+  startRound();
+}
+
+function updateDirectionFromKeys() {
+  const keys = Array.from(pressedKeys);
+  const lastKey = keys[keys.length - 1];
+  if (!lastKey) { direction = { x: 0, y: 0 }; return; }
+  if (lastKey === "arrowup" || lastKey === "w") direction = { x: 0, y: -1 };
+  else if (lastKey === "arrowdown" || lastKey === "s") direction = { x: 0, y: 1 };
+  else if (lastKey === "arrowleft" || lastKey === "a") direction = { x: -1, y: 0 };
+  else if (lastKey === "arrowright" || lastKey === "d") direction = { x: 1, y: 0 };
+}
+function recordPathPoint(x, y) {
+  const last = pathPoints[pathPoints.length - 1];
+  if (!last || Math.hypot(x - last.x, y - last.y) > 2) pathPoints.push({ x, y });
+  const neededLength = Math.max(120, snake.length * 40);
+  if (pathPoints.length > neededLength) pathPoints.splice(0, pathPoints.length - neededLength);
+}
+function updateBodyPositions() {
+  for (let i = 1; i < snake.length; i++) {
+    const target = getPointAlongPathFromEnd(i * bodySpacing);
+    if (target) {
+      snake[i].x += (target.x - snake[i].x) * 0.42;
+      snake[i].y += (target.y - snake[i].y) * 0.42;
+    }
+  }
+}
+function getPointAlongPathFromEnd(distanceBack) {
+  if (!pathPoints.length) return null;
+  let distance = 0;
+  for (let i = pathPoints.length - 1; i > 0; i--) {
+    const cur = pathPoints[i];
+    const prev = pathPoints[i - 1];
+    const segment = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+    if (distance + segment >= distanceBack) {
+      const t = segment === 0 ? 0 : (distanceBack - distance) / segment;
+      return { x: cur.x + (prev.x - cur.x) * t, y: cur.y + (prev.y - cur.y) * t };
+    }
+    distance += segment;
+  }
+  return pathPoints[0];
+}
+function checkTrashCollection() {
+  const head = snake[0];
+  for (let i = trashItems.length - 1; i >= 0; i--) {
+    const item = trashItems[i];
+    const distance = Math.hypot(head.x - item.x, head.y - item.y);
+    const collectDistance = headSize * 0.38 + item.size * 0.38;
+    if (distance < collectDistance) {
+      score++;
+      scoreEl.textContent = score;
+      const tail = snake[snake.length - 1];
+      snake.push({ x: tail.x, y: tail.y, img: item.img, size: item.isLarge ? bodySize * 1.08 : bodySize * 0.88 });
+      trashItems.splice(i, 1);
+      updateTrashLeft();
+      messageEl.textContent = item.isLarge ? "Collected a large piece of waste." : "Collected a small piece of waste.";
+    }
+  }
+}
+
+function draw() {
+  animationTime += 0.018;
+  drawFullOcean();
+  if (gameStarted) {
+    drawAllTrash();
+    drawSnake();
+    if (cleanupComplete && showingInfo) {
+      ctx.fillStyle = "rgba(0, 20, 38, 0.18)";
+      ctx.fillRect(0, 0, gameWidth, gameHeight);
+    }
+  }
+}
+function drawFullOcean() {
+  const gradient = ctx.createLinearGradient(0, 0, 0, gameHeight);
+  gradient.addColorStop(0, "#8be8ff");
+  gradient.addColorStop(0.22, "#2fc0e6");
+  gradient.addColorStop(0.58, "#087daa");
+  gradient.addColorStop(1, "#013c62");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  const cleanRatio = Math.min(score / Math.max(1, getTrashCountForRound()), 1);
+  ctx.fillStyle = `rgba(210, 255, 245, ${0.08 + cleanRatio * 0.2})`;
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  const light = ctx.createRadialGradient(gameWidth * 0.18, gameHeight * 0.08, 20, gameWidth * 0.18, gameHeight * 0.08, gameWidth * 0.55);
+  light.addColorStop(0, "rgba(255,255,255,.42)");
+  light.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  ctx.strokeStyle = "rgba(255,255,255,.16)";
+  ctx.lineWidth = 3;
+  for (let y = 70; y < gameHeight; y += 96) {
+    ctx.beginPath();
+    for (let x = -30; x <= gameWidth + 30; x += 22) {
+      const waveY = y + Math.sin(x * 0.025 + animationTime * 5 + y * 0.01) * 9;
+      if (x === -30) ctx.moveTo(x, waveY); else ctx.lineTo(x, waveY);
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(255,255,255,.25)";
+  const bubbleCount = Math.floor((gameWidth * gameHeight) / 28000);
+  for (let i = 0; i < bubbleCount; i++) {
+    const x = (i * 137 + score * 11) % gameWidth;
+    const y = (i * 227 - animationTime * 60 + gameHeight * 2) % gameHeight;
+    const r = 2 + (i % 8);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  const vignette = ctx.createRadialGradient(gameWidth / 2, gameHeight / 2, Math.min(gameWidth, gameHeight) * 0.15, gameWidth / 2, gameHeight / 2, Math.max(gameWidth, gameHeight) * 0.75);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,20,35,.24)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+}
+function drawAllTrash() {
+  trashItems.forEach((item) => {
+    const bob = Math.sin(animationTime * 3 + item.bobOffset) * 5;
+    drawFloatingImage(item.img, item.x, item.y + bob, item.size, item.rotation + Math.sin(animationTime + item.bobOffset) * 0.08);
+  });
+}
+function drawSnake() {
+  const isIdle = direction.x === 0 && direction.y === 0;
+  const idleAlpha = isIdle ? 0.68 + Math.sin(animationTime * 8) * 0.25 : 1;
+  for (let i = snake.length - 1; i >= 1; i--) {
+    const part = snake[i];
+    ctx.globalAlpha = idleAlpha;
+    drawFloatingImage(part.img, part.x, part.y, part.size || bodySize, Math.sin(part.x * 0.02 + part.y * 0.03) * 0.25);
+    ctx.globalAlpha = 1;
+  }
+  ctx.globalAlpha = idleAlpha;
+  drawHead(snake[0].x, snake[0].y, isIdle);
+  ctx.globalAlpha = 1;
+  if (isIdle && gameStarted && !cleanupComplete) drawIdleGlow(snake[0].x, snake[0].y);
+}
+function drawHead(x, y, isIdle) {
+  const pulse = isIdle ? 1 + Math.sin(animationTime * 8) * 0.04 : 1;
+  const radius = (headSize / 2) * pulse;
+  ctx.fillStyle = "#ffe96b";
+  ctx.beginPath(); ctx.arc(x, y, radius * 0.92, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#06445d";
+  const eyeOffsetX = direction.x * 6;
+  const eyeOffsetY = direction.y * 6;
+  ctx.beginPath();
+  ctx.arc(x - 16 + eyeOffsetX, y - 16 + eyeOffsetY, 6.2, 0, Math.PI * 2);
+  ctx.arc(x + 16 + eyeOffsetX, y - 16 + eyeOffsetY, 6.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#06445d";
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(x, y + 7, 18, 0.12 * Math.PI, 0.88 * Math.PI); ctx.stroke();
+}
+function drawIdleGlow(x, y) {
+  ctx.save();
+  ctx.globalAlpha = 0.22 + Math.sin(animationTime * 8) * 0.12;
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(x, y, headSize * 0.66, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+function drawFloatingImage(img, x, y, size, rotation) {
+  if (!img) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.drawImage(img, -size / 2, -size / 2, size, size); ctx.restore();
+}
+function drawIdleScreenText() {
+  ctx.fillStyle = "rgba(0,30,55,.25)";
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  ctx.fillStyle = "rgba(255,255,255,.76)";
+  ctx.textAlign = "center";
+  ctx.font = "700 42px Arial";
+  ctx.fillText("Ocean Trash Cleanup", gameWidth / 2, gameHeight / 2 - 30);
+  ctx.font = "20px Arial";
+  ctx.fillText("Hold a direction key to move. Release to idle and blink.", gameWidth / 2, gameHeight / 2 + 15);
+  ctx.textAlign = "left";
+}
+function normalizeKey(key) {
+  const k = key.toLowerCase();
+  return ["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(k) ? k : null;
+}
+document.addEventListener("keydown", (event) => {
+  if (showingInfo) return;
+  const key = normalizeKey(event.key);
+  if (!key) return;
+  event.preventDefault();
+  if (pressedKeys.has(key)) pressedKeys.delete(key);
+  pressedKeys.add(key);
+});
+document.addEventListener("keyup", (event) => {
+  const key = normalizeKey(event.key);
+  if (!key) return;
+  event.preventDefault();
+  pressedKeys.delete(key);
+});
+window.addEventListener("blur", () => {
+  pressedKeys.clear();
+  direction = { x: 0, y: 0 };
+});
+startButton.addEventListener("click", () => {
+  startButton.blur();
+  startFreshGame();
+});
+continueButton.addEventListener("click", () => {
+  continueButton.blur();
+  continueToNextRound();
+});
