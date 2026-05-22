@@ -13,7 +13,7 @@ const continueButton = document.getElementById("continueButton");
 
 const headSize = 88;
 const bodySize = 78;
-const moveSpeed = 185;
+const moveSpeed = 285;
 const bodySpacing = 58;
 const baseTrashCount = 18;
 const trashIncreasePerRound = 4;
